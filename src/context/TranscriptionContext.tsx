@@ -32,55 +32,77 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         return;
       }
 
-      const recognitionInstance = new SpeechRecognition();
-      recognitionInstance.continuous = true;
-      recognitionInstance.interimResults = true;
-      recognitionInstance.lang = selectedLanguage;
+      // Request microphone permission before starting recognition
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          // Stop the stream immediately, we just needed permission
+          stream.getTracks().forEach(track => track.stop());
+          
+          // Now start speech recognition
+          const recognitionInstance = new SpeechRecognition();
+          recognitionInstance.continuous = true;
+          recognitionInstance.interimResults = true;
+          recognitionInstance.lang = selectedLanguage;
 
-      recognitionInstance.onstart = () => {
-        setIsRecording(true);
-        toast.success('Recording started');
-      };
+          recognitionInstance.onstart = () => {
+            setIsRecording(true);
+            toast.success('Recording started');
+          };
 
-      recognitionInstance.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+          recognitionInstance.onresult = (event: any) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcriptSegment = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcriptSegment;
-          } else {
-            interimTranscript += transcriptSegment;
-          }
-        }
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcriptSegment = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                finalTranscript += transcriptSegment;
+              } else {
+                interimTranscript += transcriptSegment;
+              }
+            }
 
-        setTranscript(prev => {
-          // If we have final text, add it to our transcript
-          if (finalTranscript) {
-            return prev + ' ' + finalTranscript;
-          }
-          // Otherwise, show current transcript + interim results
-          return prev;
-        });
-      };
+            setTranscript(prev => {
+              // If we have final text, add it to our transcript
+              if (finalTranscript) {
+                return prev + ' ' + finalTranscript;
+              }
+              // Otherwise, show current transcript + interim results
+              return prev;
+            });
+          };
 
-      recognitionInstance.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error);
-        toast.error(`Error: ${event.error}`);
-        setIsRecording(false);
-      };
+          recognitionInstance.onerror = (event: any) => {
+            console.error('Speech recognition error', event.error);
+            
+            // Handle specific error types
+            if (event.error === 'audio-capture') {
+              toast.error('Microphone not found or not working. Please check your device settings.');
+            } else if (event.error === 'not-allowed') {
+              toast.error('Microphone access was denied. Please allow microphone access in your browser settings.');
+            } else {
+              toast.error(`Error: ${event.error}`);
+            }
+            
+            setIsRecording(false);
+          };
 
-      recognitionInstance.onend = () => {
-        // Only set recording to false if we're not supposed to be recording
-        // This allows us to restart if it stops unexpectedly
-        if (isRecording) {
+          recognitionInstance.onend = () => {
+            // Only set recording to false if we're not supposed to be recording
+            // This allows us to restart if it stops unexpectedly
+            if (isRecording) {
+              recognitionInstance.start();
+            }
+          };
+
           recognitionInstance.start();
-        }
-      };
-
-      recognitionInstance.start();
-      setRecognition(recognitionInstance);
+          setRecognition(recognitionInstance);
+        })
+        .catch(err => {
+          console.error('Microphone access error:', err);
+          toast.error('Microphone access was denied. Please allow microphone access and try again.');
+          setIsRecording(false);
+        });
     } catch (error) {
       console.error('Error starting speech recognition:', error);
       toast.error('Failed to start recording');
