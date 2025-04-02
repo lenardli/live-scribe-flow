@@ -47,7 +47,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         // Initialize the transcriber with the local whisper model
         const transcriber = await pipeline(
           "automatic-speech-recognition",
-          "openai/whisper-large-v3-turbo",
+          "openai/whisper-large-v3",
           { 
             device: "webgpu",
             progress_callback: (progress: any) => {
