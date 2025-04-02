@@ -3,10 +3,10 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTranscription } from '@/context/TranscriptionContext';
-import { Info } from 'lucide-react';
+import { Info, FileAudio } from 'lucide-react';
 
 const TranscriptionOutput: React.FC = () => {
-  const { transcript, isRecording } = useTranscription();
+  const { transcript, isRecording, isProcessingFile, uploadedFileName } = useTranscription();
   
   return (
     <Card className="w-full border shadow-md">
@@ -24,6 +24,16 @@ const TranscriptionOutput: React.FC = () => {
                   Listening... Speak now.
                   <span className="animate-pulse">|</span>
                 </p>
+              ) : isProcessingFile ? (
+                <div className="flex items-center justify-center flex-col">
+                  <div className="animate-pulse flex items-center mb-2">
+                    <FileAudio className="h-5 w-5 mr-2 text-blue-500" />
+                    <p className="italic">Processing audio file...</p>
+                  </div>
+                  {uploadedFileName && (
+                    <p className="text-sm text-blue-600">File: {uploadedFileName}</p>
+                  )}
+                </div>
               ) : (
                 <div>
                   <div className="flex items-start gap-2 mb-2 p-2 bg-blue-50 rounded-md">
@@ -36,7 +46,7 @@ const TranscriptionOutput: React.FC = () => {
                     </div>
                   </div>
                   <p className="italic mt-2">
-                    Press "Start Recording" to begin transcribing.
+                    Press "Start Recording" to begin transcribing or upload an audio file.
                   </p>
                 </div>
               )}

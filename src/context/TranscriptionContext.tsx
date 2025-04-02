@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 
@@ -9,6 +10,9 @@ interface TranscriptionContextType {
   clearTranscript: () => void;
   selectedLanguage: string;
   setSelectedLanguage: (language: string) => void;
+  isProcessingFile: boolean;
+  uploadedFileName: string | null;
+  handleFileUpload: (file: File) => void;
 }
 
 const TranscriptionContext = createContext<TranscriptionContextType | undefined>(undefined);
@@ -22,6 +26,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [transcript, setTranscript] = useState<string>('');
   const [recognition, setRecognition] = useState<any>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en-US');
+  const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   const startRecording = () => {
     try {
@@ -120,7 +126,98 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
 
   const clearTranscript = () => {
     setTranscript('');
+    setUploadedFileName(null);
     toast.info('Transcript cleared');
+  };
+
+  const handleFileUpload = (file: File) => {
+    // Check if the file is an audio file
+    if (!file.type.startsWith('audio/')) {
+      toast.error('Please upload an audio file');
+      return;
+    }
+
+    setIsProcessingFile(true);
+    setUploadedFileName(file.name);
+    
+    // Create a URL for the uploaded file
+    const fileURL = URL.createObjectURL(file);
+    
+    // Create a new SpeechRecognition instance
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Speech recognition is not supported in your browser. Try Chrome, Edge, or Safari.');
+      setIsProcessingFile(false);
+      return;
+    }
+
+    // Create audio context and source
+    const audioContext = new AudioContext();
+    const audioElement = new Audio(fileURL);
+    audioElement.controls = true;
+    
+    // Create media source
+    const mediaSource = audioContext.createMediaElementSource(audioElement);
+    mediaSource.connect(audioContext.destination);
+
+    // Set up SpeechRecognition
+    const recognitionInstance = new SpeechRecognition();
+    recognitionInstance.continuous = true;
+    recognitionInstance.interimResults = false;
+    recognitionInstance.lang = selectedLanguage;
+
+    recognitionInstance.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcriptSegment = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          setTranscript(prev => prev + ' ' + transcriptSegment);
+        }
+      }
+    };
+
+    recognitionInstance.onerror = (event: any) => {
+      console.error('Speech recognition error during file processing', event.error);
+      toast.error(`Error processing audio file: ${event.error}`);
+      setIsProcessingFile(false);
+    };
+
+    recognitionInstance.onend = () => {
+      // For file processing, we don't restart on end
+      setIsProcessingFile(false);
+      toast.success('Audio file transcription completed');
+    };
+
+    // Start playing the audio and recognition
+    audioElement.oncanplaythrough = () => {
+      toast.info(`Processing file: ${file.name}`);
+      try {
+        recognitionInstance.start();
+        audioElement.play()
+          .catch(error => {
+            console.error('Error playing audio:', error);
+            recognitionInstance.stop();
+            setIsProcessingFile(false);
+            toast.error('Failed to play audio file. User interaction may be required.');
+          });
+      } catch (error) {
+        console.error('Error starting recognition for file:', error);
+        setIsProcessingFile(false);
+        toast.error('Failed to process audio file');
+      }
+    };
+
+    // Clean up on errors or completion
+    audioElement.onerror = () => {
+      toast.error('Error loading the audio file');
+      setIsProcessingFile(false);
+      if (recognitionInstance) {
+        try {
+          recognitionInstance.stop();
+        } catch (e) {
+          console.error('Error stopping recognition:', e);
+        }
+      }
+    };
   };
 
   return (
@@ -132,6 +229,9 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       clearTranscript,
       selectedLanguage,
       setSelectedLanguage,
+      isProcessingFile,
+      uploadedFileName,
+      handleFileUpload,
     }}>
       {children}
     </TranscriptionContext.Provider>
