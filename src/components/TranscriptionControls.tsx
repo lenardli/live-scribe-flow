@@ -1,9 +1,8 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useTranscription } from '@/context/TranscriptionContext';
-import { Mic, MicOff, Copy, Trash2, Upload, FileAudio, Key } from 'lucide-react';
+import { Mic, MicOff, Copy, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import LanguageSelector from './LanguageSelector';
 
@@ -16,11 +15,8 @@ const TranscriptionControls: React.FC = () => {
     clearTranscript,
     isProcessingFile,
     handleFileUpload,
-    apiKey,
-    setApiKey
+    isModelLoading
   } = useTranscription();
-
-  const [showApiKey, setShowApiKey] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -65,7 +61,7 @@ const TranscriptionControls: React.FC = () => {
           variant={isRecording ? "destructive" : "default"}
           onClick={isRecording ? stopRecording : startRecording}
           className={isRecording ? "bg-red-500 hover:bg-red-600" : "bg-transcribe-primary hover:bg-transcribe-secondary"}
-          disabled={isProcessingFile}
+          disabled={isProcessingFile || isModelLoading}
         >
           {isRecording ? (
             <>
@@ -83,7 +79,7 @@ const TranscriptionControls: React.FC = () => {
         <Button
           variant="outline"
           onClick={triggerFileInput}
-          disabled={isRecording || isProcessingFile}
+          disabled={isRecording || isProcessingFile || isModelLoading}
         >
           <Upload className="mr-2 h-4 w-4" />
           Upload Audio
@@ -116,45 +112,11 @@ const TranscriptionControls: React.FC = () => {
       </div>
       
       <div className="bg-blue-50 p-3 rounded-md">
-        <div className="flex items-center mb-2">
-          <Key className="h-4 w-4 mr-2 text-blue-600" />
-          <h3 className="text-blue-700 font-medium">OpenAI API Key</h3>
-          {!showApiKey && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="ml-auto text-xs" 
-              onClick={() => setShowApiKey(true)}
-            >
-              {apiKey ? "Change" : "Add"}
-            </Button>
-          )}
-        </div>
-        
-        {showApiKey ? (
-          <div className="flex gap-2 items-center">
-            <Input
-              type="password"
-              placeholder="Enter your OpenAI API key"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="flex-1"
-            />
-            <Button 
-              variant="secondary" 
-              size="sm"
-              onClick={() => setShowApiKey(false)}
-            >
-              Save
-            </Button>
-          </div>
-        ) : (
-          <p className="text-sm text-blue-600">
-            {apiKey ? "API key is set" : "Please add your OpenAI API key to use Whisper transcription"}
-          </p>
-        )}
+        <p className="text-sm text-blue-600">
+          Using local Whisper model for audio transcription
+        </p>
         <p className="text-xs mt-2 text-blue-500">
-          Whisper-large-v3-turbo will be used for audio file transcription
+          The Whisper model runs entirely in your browser using WebGPU
         </p>
       </div>
     </div>

@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTranscription } from '@/context/TranscriptionContext';
-import { Info, FileAudio, Loader2 } from 'lucide-react';
+import { Info, FileAudio, Loader2, Download } from 'lucide-react';
 
 const TranscriptionOutput: React.FC = () => {
   const { 
@@ -11,7 +11,9 @@ const TranscriptionOutput: React.FC = () => {
     isRecording, 
     isProcessingFile, 
     uploadedFileName,
-    isTranscribingWithWhisper
+    isTranscribingWithWhisper,
+    isModelLoading,
+    progressMessage
   } = useTranscription();
   
   return (
@@ -25,7 +27,17 @@ const TranscriptionOutput: React.FC = () => {
             </p>
           ) : (
             <div className="text-gray-500">
-              {isRecording ? (
+              {isModelLoading ? (
+                <div className="flex items-center justify-center flex-col">
+                  <div className="animate-pulse flex items-center mb-2">
+                    <Download className="h-5 w-5 mr-2 text-blue-500 animate-spin" />
+                    <p className="italic">Loading Whisper model...</p>
+                  </div>
+                  {progressMessage && (
+                    <p className="text-sm text-blue-600">{progressMessage}</p>
+                  )}
+                </div>
+              ) : isRecording ? (
                 <p className="italic">
                   Listening... Speak now.
                   <span className="animate-pulse">|</span>
@@ -35,7 +47,7 @@ const TranscriptionOutput: React.FC = () => {
                   {isTranscribingWithWhisper ? (
                     <div className="animate-pulse flex items-center mb-2">
                       <Loader2 className="h-5 w-5 mr-2 text-blue-500 animate-spin" />
-                      <p className="italic">Processing with OpenAI Whisper...</p>
+                      <p className="italic">Processing with local Whisper model...</p>
                     </div>
                   ) : (
                     <div className="animate-pulse flex items-center mb-2">

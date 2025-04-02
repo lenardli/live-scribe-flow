@@ -1,5 +1,7 @@
+
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
+import { pipeline } from "@huggingface/transformers";
 
 interface TranscriptionContextType {
   isRecording: boolean;
@@ -13,8 +15,8 @@ interface TranscriptionContextType {
   uploadedFileName: string | null;
   handleFileUpload: (file: File) => void;
   isTranscribingWithWhisper: boolean;
-  apiKey: string;
-  setApiKey: (key: string) => void;
+  isModelLoading: boolean;
+  progressMessage: string;
 }
 
 const TranscriptionContext = createContext<TranscriptionContextType | undefined>(undefined);
@@ -31,15 +33,47 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [isTranscribingWithWhisper, setIsTranscribingWithWhisper] = useState<boolean>(false);
-  const [apiKey, setApiKey] = useState<string>(() => {
-    return localStorage.getItem('openai_api_key') || '';
-  });
-  
+  const [isModelLoading, setIsModelLoading] = useState<boolean>(false);
+  const [progressMessage, setProgressMessage] = useState<string>('');
+  const [whisperTranscriber, setWhisperTranscriber] = useState<any>(null);
+
+  // Initialize whisper model when component mounts
   React.useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem('openai_api_key', apiKey);
-    }
-  }, [apiKey]);
+    const initializeWhisperModel = async () => {
+      try {
+        setIsModelLoading(true);
+        setProgressMessage('Initializing Whisper model...');
+
+        // Initialize the transcriber with the local whisper model
+        const transcriber = await pipeline(
+          "automatic-speech-recognition",
+          "openai/whisper-large-v3-turbo",
+          { 
+            device: "webgpu",
+            progress_callback: (progress: any) => {
+              if (progress.status === 'download') {
+                const downloaded = Math.round((progress.loaded / progress.total) * 100);
+                setProgressMessage(`Downloading model: ${downloaded}% (${Math.round(progress.loaded / 1024 / 1024)}MB / ${Math.round(progress.total / 1024 / 1024)}MB)`);
+              } else if (progress.status === 'init') {
+                setProgressMessage(`Initializing model: ${Math.round(progress.progress * 100)}%`);
+              }
+            }
+          }
+        );
+        
+        setWhisperTranscriber(transcriber);
+        toast.success('Whisper model loaded successfully');
+      } catch (error) {
+        console.error('Error loading Whisper model:', error);
+        toast.error(`Failed to load Whisper model: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        setIsModelLoading(false);
+        setProgressMessage('');
+      }
+    };
+
+    initializeWhisperModel();
+  }, []);
 
   const startRecording = () => {
     try {
@@ -139,8 +173,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       return;
     }
 
-    if (!apiKey) {
-      toast.error('Please enter your OpenAI API key first');
+    if (!whisperTranscriber) {
+      toast.error('Whisper model is not loaded yet. Please wait or try reloading the page.');
       return;
     }
 
@@ -149,32 +183,18 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     setIsTranscribingWithWhisper(true);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('model', 'whisper-large-v3-turbo');
+      toast.info(`Transcribing file: ${file.name} with Whisper AI (local model)`);
       
-      if (selectedLanguage) {
-        const languageCode = selectedLanguage.split('-')[0];
-        formData.append('language', languageCode);
-      }
+      // Convert file to ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
       
-      toast.info(`Transcribing file: ${file.name} with Whisper AI`);
-      
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: formData
+      // Transcribe with the local Whisper model
+      const output = await whisperTranscriber(arrayBuffer, {
+        language: selectedLanguage.split('-')[0], // Extract language code (e.g., 'en' from 'en-US')
+        task: "transcribe"
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to transcribe audio');
-      }
-      
-      const result = await response.json();
-      setTranscript(result.text);
+      setTranscript(output.text);
       toast.success('Transcription completed successfully');
     } catch (error) {
       console.error('Transcription error:', error);
@@ -198,8 +218,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       uploadedFileName,
       handleFileUpload,
       isTranscribingWithWhisper,
-      apiKey,
-      setApiKey,
+      isModelLoading,
+      progressMessage
     }}>
       {children}
     </TranscriptionContext.Provider>
