@@ -3,10 +3,16 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTranscription } from '@/context/TranscriptionContext';
-import { Info, FileAudio } from 'lucide-react';
+import { Info, FileAudio, Loader2 } from 'lucide-react';
 
 const TranscriptionOutput: React.FC = () => {
-  const { transcript, isRecording, isProcessingFile, uploadedFileName } = useTranscription();
+  const { 
+    transcript, 
+    isRecording, 
+    isProcessingFile, 
+    uploadedFileName,
+    isTranscribingWithWhisper
+  } = useTranscription();
   
   return (
     <Card className="w-full border shadow-md">
@@ -26,10 +32,17 @@ const TranscriptionOutput: React.FC = () => {
                 </p>
               ) : isProcessingFile ? (
                 <div className="flex items-center justify-center flex-col">
-                  <div className="animate-pulse flex items-center mb-2">
-                    <FileAudio className="h-5 w-5 mr-2 text-blue-500" />
-                    <p className="italic">Processing audio file...</p>
-                  </div>
+                  {isTranscribingWithWhisper ? (
+                    <div className="animate-pulse flex items-center mb-2">
+                      <Loader2 className="h-5 w-5 mr-2 text-blue-500 animate-spin" />
+                      <p className="italic">Processing with OpenAI Whisper...</p>
+                    </div>
+                  ) : (
+                    <div className="animate-pulse flex items-center mb-2">
+                      <FileAudio className="h-5 w-5 mr-2 text-blue-500" />
+                      <p className="italic">Processing audio file...</p>
+                    </div>
+                  )}
                   {uploadedFileName && (
                     <p className="text-sm text-blue-600">File: {uploadedFileName}</p>
                   )}

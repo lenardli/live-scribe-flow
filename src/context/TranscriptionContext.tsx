@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 
@@ -13,6 +12,9 @@ interface TranscriptionContextType {
   isProcessingFile: boolean;
   uploadedFileName: string | null;
   handleFileUpload: (file: File) => void;
+  isTranscribingWithWhisper: boolean;
+  apiKey: string;
+  setApiKey: (key: string) => void;
 }
 
 const TranscriptionContext = createContext<TranscriptionContextType | undefined>(undefined);
@@ -28,23 +30,29 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [selectedLanguage, setSelectedLanguage] = useState<string>('en-US');
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isTranscribingWithWhisper, setIsTranscribingWithWhisper] = useState<boolean>(false);
+  const [apiKey, setApiKey] = useState<string>(() => {
+    return localStorage.getItem('openai_api_key') || '';
+  });
+  
+  React.useEffect(() => {
+    if (apiKey) {
+      localStorage.setItem('openai_api_key', apiKey);
+    }
+  }, [apiKey]);
 
   const startRecording = () => {
     try {
-      // Check if browser supports SpeechRecognition
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
         toast.error('Speech recognition is not supported in your browser. Try Chrome, Edge, or Safari.');
         return;
       }
 
-      // Request microphone permission before starting recognition
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
-          // Stop the stream immediately, we just needed permission
           stream.getTracks().forEach(track => track.stop());
           
-          // Now start speech recognition
           const recognitionInstance = new SpeechRecognition();
           recognitionInstance.continuous = true;
           recognitionInstance.interimResults = true;
@@ -69,11 +77,9 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
             }
 
             setTranscript(prev => {
-              // If we have final text, add it to our transcript
               if (finalTranscript) {
                 return prev + ' ' + finalTranscript;
               }
-              // Otherwise, show current transcript + interim results
               return prev;
             });
           };
@@ -81,7 +87,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
           recognitionInstance.onerror = (event: any) => {
             console.error('Speech recognition error', event.error);
             
-            // Handle specific error types
             if (event.error === 'audio-capture') {
               toast.error('Microphone not found or not working. Please check your device settings.');
             } else if (event.error === 'not-allowed') {
@@ -94,8 +99,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
           };
 
           recognitionInstance.onend = () => {
-            // Only set recording to false if we're not supposed to be recording
-            // This allows us to restart if it stops unexpectedly
             if (isRecording) {
               recognitionInstance.start();
             }
@@ -130,94 +133,56 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     toast.info('Transcript cleared');
   };
 
-  const handleFileUpload = (file: File) => {
-    // Check if the file is an audio file
+  const handleFileUpload = async (file: File) => {
     if (!file.type.startsWith('audio/')) {
       toast.error('Please upload an audio file');
       return;
     }
 
-    setIsProcessingFile(true);
-    setUploadedFileName(file.name);
-    
-    // Create a URL for the uploaded file
-    const fileURL = URL.createObjectURL(file);
-    
-    // Create a new SpeechRecognition instance
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error('Speech recognition is not supported in your browser. Try Chrome, Edge, or Safari.');
-      setIsProcessingFile(false);
+    if (!apiKey) {
+      toast.error('Please enter your OpenAI API key first');
       return;
     }
 
-    // Create audio context and source
-    const audioContext = new AudioContext();
-    const audioElement = new Audio(fileURL);
-    audioElement.controls = true;
+    setIsProcessingFile(true);
+    setUploadedFileName(file.name);
+    setIsTranscribingWithWhisper(true);
     
-    // Create media source
-    const mediaSource = audioContext.createMediaElementSource(audioElement);
-    mediaSource.connect(audioContext.destination);
-
-    // Set up SpeechRecognition
-    const recognitionInstance = new SpeechRecognition();
-    recognitionInstance.continuous = true;
-    recognitionInstance.interimResults = false;
-    recognitionInstance.lang = selectedLanguage;
-
-    recognitionInstance.onresult = (event: any) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcriptSegment = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          setTranscript(prev => prev + ' ' + transcriptSegment);
-        }
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('model', 'whisper-large-v3-turbo');
+      
+      if (selectedLanguage) {
+        const languageCode = selectedLanguage.split('-')[0];
+        formData.append('language', languageCode);
       }
-    };
-
-    recognitionInstance.onerror = (event: any) => {
-      console.error('Speech recognition error during file processing', event.error);
-      toast.error(`Error processing audio file: ${event.error}`);
-      setIsProcessingFile(false);
-    };
-
-    recognitionInstance.onend = () => {
-      // For file processing, we don't restart on end
-      setIsProcessingFile(false);
-      toast.success('Audio file transcription completed');
-    };
-
-    // Start playing the audio and recognition
-    audioElement.oncanplaythrough = () => {
-      toast.info(`Processing file: ${file.name}`);
-      try {
-        recognitionInstance.start();
-        audioElement.play()
-          .catch(error => {
-            console.error('Error playing audio:', error);
-            recognitionInstance.stop();
-            setIsProcessingFile(false);
-            toast.error('Failed to play audio file. User interaction may be required.');
-          });
-      } catch (error) {
-        console.error('Error starting recognition for file:', error);
-        setIsProcessingFile(false);
-        toast.error('Failed to process audio file');
+      
+      toast.info(`Transcribing file: ${file.name} with Whisper AI`);
+      
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to transcribe audio');
       }
-    };
-
-    // Clean up on errors or completion
-    audioElement.onerror = () => {
-      toast.error('Error loading the audio file');
+      
+      const result = await response.json();
+      setTranscript(result.text);
+      toast.success('Transcription completed successfully');
+    } catch (error) {
+      console.error('Transcription error:', error);
+      toast.error(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setIsProcessingFile(false);
-      if (recognitionInstance) {
-        try {
-          recognitionInstance.stop();
-        } catch (e) {
-          console.error('Error stopping recognition:', e);
-        }
-      }
-    };
+      setIsTranscribingWithWhisper(false);
+    }
   };
 
   return (
@@ -232,6 +197,9 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       isProcessingFile,
       uploadedFileName,
       handleFileUpload,
+      isTranscribingWithWhisper,
+      apiKey,
+      setApiKey,
     }}>
       {children}
     </TranscriptionContext.Provider>
