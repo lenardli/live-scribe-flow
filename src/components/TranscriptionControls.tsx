@@ -5,6 +5,7 @@ import { useTranscription } from '@/context/TranscriptionContext';
 import { Mic, MicOff, Copy, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import LanguageSelector from './LanguageSelector';
+import ModelSelector from './ModelSelector';
 
 const TranscriptionControls: React.FC = () => {
   const { 
@@ -15,7 +16,8 @@ const TranscriptionControls: React.FC = () => {
     clearTranscript,
     isProcessingFile,
     handleFileUpload,
-    isModelLoading
+    isModelLoading,
+    selectedModel
   } = useTranscription();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +58,7 @@ const TranscriptionControls: React.FC = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 justify-center items-center">
         <LanguageSelector />
+        <ModelSelector />
         
         <Button
           variant={isRecording ? "destructive" : "default"}
@@ -113,10 +116,10 @@ const TranscriptionControls: React.FC = () => {
       
       <div className="bg-blue-50 p-3 rounded-md">
         <p className="text-sm text-blue-600">
-          Using advanced Xenova speech recognition model
+          Using {selectedModel.name} speech recognition model
         </p>
         <p className="text-xs mt-2 text-blue-500">
-          The large model runs entirely in your browser using WebGPU
+          {selectedModel.description} - Runs entirely in your browser using WebGPU
         </p>
       </div>
     </div>

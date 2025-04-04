@@ -2,6 +2,40 @@ import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 import { pipeline } from "@huggingface/transformers";
 
+export type TranscriptionModel = {
+  id: string;
+  name: string;
+  description: string;
+  size: string;
+};
+
+export const AVAILABLE_MODELS: TranscriptionModel[] = [
+  {
+    id: "Xenova/whisper-large-v3",
+    name: "Whisper Large v3",
+    description: "High accuracy, large model",
+    size: "Large (2.9GB)"
+  },
+  {
+    id: "Xenova/whisper-medium",
+    name: "Whisper Medium",
+    description: "Good balance of speed and accuracy",
+    size: "Medium (1.5GB)"
+  },
+  {
+    id: "Xenova/whisper-small",
+    name: "Whisper Small",
+    description: "Faster processing, still good accuracy",
+    size: "Small (461MB)"
+  },
+  {
+    id: "Xenova/whisper-tiny",
+    name: "Whisper Tiny",
+    description: "Very fast, less accurate",
+    size: "Tiny (151MB)"
+  }
+];
+
 interface TranscriptionContextType {
   isRecording: boolean;
   transcript: string;
@@ -16,6 +50,9 @@ interface TranscriptionContextType {
   isTranscribingWithWhisper: boolean;
   isModelLoading: boolean;
   progressMessage: string;
+  selectedModel: TranscriptionModel;
+  setSelectedModel: (model: TranscriptionModel) => void;
+  availableModels: TranscriptionModel[];
 }
 
 const TranscriptionContext = createContext<TranscriptionContextType | undefined>(undefined);
@@ -35,42 +72,47 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [isModelLoading, setIsModelLoading] = useState<boolean>(false);
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [whisperTranscriber, setWhisperTranscriber] = useState<any>(null);
+  const [selectedModel, setSelectedModel] = useState<TranscriptionModel>(AVAILABLE_MODELS[0]);
 
   React.useEffect(() => {
-    const initializeTranscriptionModel = async () => {
-      try {
-        setIsModelLoading(true);
-        setProgressMessage('Initializing advanced speech recognition model...');
+    loadTranscriptionModel(selectedModel.id);
+  }, [selectedModel.id]);
 
-        const transcriber = await pipeline(
-          "automatic-speech-recognition",
-          "Xenova/whisper-large-v3",
-          { 
-            device: "webgpu",
-            progress_callback: (progress: any) => {
-              if (progress.status === 'download') {
-                const downloaded = Math.round((progress.loaded / progress.total) * 100);
-                setProgressMessage(`Downloading model: ${downloaded}% (${Math.round(progress.loaded / 1024 / 1024)}MB / ${Math.round(progress.total / 1024 / 1024)}MB)`);
-              } else if (progress.status === 'init') {
-                setProgressMessage(`Initializing model: ${Math.round(progress.progress * 100)}%`);
-              }
+  const loadTranscriptionModel = async (modelId: string) => {
+    try {
+      if (whisperTranscriber) {
+        setWhisperTranscriber(null);
+      }
+      
+      setIsModelLoading(true);
+      setProgressMessage(`Initializing ${selectedModel.name} model...`);
+
+      const transcriber = await pipeline(
+        "automatic-speech-recognition",
+        modelId,
+        { 
+          device: "webgpu",
+          progress_callback: (progress: any) => {
+            if (progress.status === 'download') {
+              const downloaded = Math.round((progress.loaded / progress.total) * 100);
+              setProgressMessage(`Downloading model: ${downloaded}% (${Math.round(progress.loaded / 1024 / 1024)}MB / ${Math.round(progress.total / 1024 / 1024)}MB)`);
+            } else if (progress.status === 'init') {
+              setProgressMessage(`Initializing model: ${Math.round(progress.progress * 100)}%`);
             }
           }
-        );
-        
-        setWhisperTranscriber(transcriber);
-        toast.success('Advanced speech recognition model loaded successfully');
-      } catch (error) {
-        console.error('Error loading speech recognition model:', error);
-        toast.error(`Failed to load speech recognition model: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      } finally {
-        setIsModelLoading(false);
-        setProgressMessage('');
-      }
-    };
-
-    initializeTranscriptionModel();
-  }, []);
+        }
+      );
+      
+      setWhisperTranscriber(transcriber);
+      toast.success(`${selectedModel.name} model loaded successfully`);
+    } catch (error) {
+      console.error('Error loading speech recognition model:', error);
+      toast.error(`Failed to load ${selectedModel.name} model: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsModelLoading(false);
+      setProgressMessage('');
+    }
+  };
 
   const startRecording = () => {
     try {
@@ -214,7 +256,10 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       handleFileUpload,
       isTranscribingWithWhisper,
       isModelLoading,
-      progressMessage
+      progressMessage,
+      selectedModel,
+      setSelectedModel,
+      availableModels: AVAILABLE_MODELS
     }}>
       {children}
     </TranscriptionContext.Provider>
