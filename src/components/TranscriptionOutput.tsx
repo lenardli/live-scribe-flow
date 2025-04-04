@@ -31,7 +31,7 @@ const TranscriptionOutput: React.FC = () => {
                 <div className="flex items-center justify-center flex-col">
                   <div className="animate-pulse flex items-center mb-2">
                     <Download className="h-5 w-5 mr-2 text-blue-500 animate-spin" />
-                    <p className="italic">Loading Whisper model...</p>
+                    <p className="italic">Loading Xenova model...</p>
                   </div>
                   {progressMessage && (
                     <p className="text-sm text-blue-600">{progressMessage}</p>
@@ -47,7 +47,7 @@ const TranscriptionOutput: React.FC = () => {
                   {isTranscribingWithWhisper ? (
                     <div className="animate-pulse flex items-center mb-2">
                       <Loader2 className="h-5 w-5 mr-2 text-blue-500 animate-spin" />
-                      <p className="italic">Processing with local Whisper model...</p>
+                      <p className="italic">Processing with local Xenova model...</p>
                     </div>
                   ) : (
                     <div className="animate-pulse flex items-center mb-2">

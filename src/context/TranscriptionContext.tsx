@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 import { pipeline } from "@huggingface/transformers";
@@ -12,25 +13,25 @@ export type TranscriptionModel = {
 export const AVAILABLE_MODELS: TranscriptionModel[] = [
   {
     id: "Xenova/whisper-large-v3",
-    name: "Whisper Large v3",
+    name: "Xenova Large v3",
     description: "High accuracy, large model",
     size: "Large (2.9GB)"
   },
   {
     id: "Xenova/whisper-medium",
-    name: "Whisper Medium",
+    name: "Xenova Medium",
     description: "Good balance of speed and accuracy",
     size: "Medium (1.5GB)"
   },
   {
     id: "Xenova/whisper-small",
-    name: "Whisper Small",
+    name: "Xenova Small",
     description: "Faster processing, still good accuracy",
     size: "Small (461MB)"
   },
   {
     id: "Xenova/whisper-tiny",
-    name: "Whisper Tiny",
+    name: "Xenova Tiny",
     description: "Very fast, less accurate",
     size: "Tiny (151MB)"
   }
@@ -97,10 +98,16 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
           device: "webgpu",
           progress_callback: (progress: any) => {
             if (progress.status === 'download') {
-              const downloaded = Math.round((progress.loaded / progress.total) * 100);
-              setProgressMessage(`Downloading model: ${downloaded}% (${Math.round(progress.loaded / 1024 / 1024)}MB / ${Math.round(progress.total / 1024 / 1024)}MB)`);
+              // Fix for the loading percentage issue
+              const downloaded = Math.round(((progress.loaded || 0) / (progress.total || 1)) * 100);
+              const loadedMB = Math.round((progress.loaded || 0) / 1024 / 1024);
+              const totalMB = Math.round((progress.total || 1) / 1024 / 1024);
+              setProgressMessage(`Downloading model: ${downloaded}% (${loadedMB}MB / ${totalMB}MB)`);
             } else if (progress.status === 'init') {
-              setProgressMessage(`Initializing model: ${Math.round(progress.progress * 100)}%`);
+              // Ensure progress.progress is a number
+              const initProgress = progress.progress !== null && progress.progress !== undefined ? 
+                Math.round(progress.progress * 100) : 0;
+              setProgressMessage(`Initializing model: ${initProgress}%`);
             }
           }
         }

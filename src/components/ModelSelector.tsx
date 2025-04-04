@@ -26,7 +26,8 @@ const ModelSelector: React.FC = () => {
     isRecording,
     isProcessingFile,
     isModelInitialized,
-    loadModel
+    loadModel,
+    progressMessage
   } = useTranscription();
 
   const handleModelChange = (modelId: string) => {
@@ -50,7 +51,7 @@ const ModelSelector: React.FC = () => {
             <div className="space-y-2">
               <h4 className="font-medium">Transcription Model Selection</h4>
               <p className="text-sm text-muted-foreground">
-                Choose between different Whisper models. Larger models are more accurate but take longer to load and process audio.
+                Choose between different Xenova models. Larger models are more accurate but take longer to load and process audio.
               </p>
               <ul className="text-xs space-y-1 list-disc pl-4">
                 {availableModels.map(model => (
@@ -97,7 +98,7 @@ const ModelSelector: React.FC = () => {
         ) : isModelLoading ? (
           <>
             <Download className="mr-2 h-4 w-4 animate-spin" />
-            Loading Model...
+            {progressMessage || 'Loading Model...'}
           </>
         ) : (
           <>
