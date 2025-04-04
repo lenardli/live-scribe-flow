@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 import { pipeline } from "@huggingface/transformers";
@@ -37,17 +36,15 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [whisperTranscriber, setWhisperTranscriber] = useState<any>(null);
 
-  // Initialize whisper model when component mounts
   React.useEffect(() => {
-    const initializeWhisperModel = async () => {
+    const initializeTranscriptionModel = async () => {
       try {
         setIsModelLoading(true);
-        setProgressMessage('Initializing speech recognition model...');
+        setProgressMessage('Initializing advanced speech recognition model...');
 
-        // Using a compatible ASR model instead of directly using whisper
         const transcriber = await pipeline(
           "automatic-speech-recognition",
-          "onnx-community/whisper-tiny.en", // Using a compatible ONNX model that works with WebGPU
+          "Xenova/whisper-large-v3",
           { 
             device: "webgpu",
             progress_callback: (progress: any) => {
@@ -62,7 +59,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         );
         
         setWhisperTranscriber(transcriber);
-        toast.success('Speech recognition model loaded successfully');
+        toast.success('Advanced speech recognition model loaded successfully');
       } catch (error) {
         console.error('Error loading speech recognition model:', error);
         toast.error(`Failed to load speech recognition model: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -72,7 +69,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       }
     };
 
-    initializeWhisperModel();
+    initializeTranscriptionModel();
   }, []);
 
   const startRecording = () => {
@@ -183,14 +180,12 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     setIsTranscribingWithWhisper(true);
     
     try {
-      toast.info(`Transcribing file: ${file.name} with local speech recognition model`);
+      toast.info(`Transcribing file: ${file.name} with advanced speech recognition model`);
       
-      // Convert file to ArrayBuffer
       const arrayBuffer = await file.arrayBuffer();
       
-      // Transcribe with the local model
       const output = await whisperTranscriber(arrayBuffer, {
-        language: selectedLanguage.split('-')[0], // Extract language code (e.g., 'en' from 'en-US')
+        language: selectedLanguage.split('-')[0],
         task: "transcribe"
       });
       

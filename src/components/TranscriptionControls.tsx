@@ -113,10 +113,10 @@ const TranscriptionControls: React.FC = () => {
       
       <div className="bg-blue-50 p-3 rounded-md">
         <p className="text-sm text-blue-600">
-          Using local speech recognition model for audio transcription
+          Using advanced Xenova speech recognition model
         </p>
         <p className="text-xs mt-2 text-blue-500">
-          The model runs entirely in your browser using WebGPU
+          The large model runs entirely in your browser using WebGPU
         </p>
       </div>
     </div>
