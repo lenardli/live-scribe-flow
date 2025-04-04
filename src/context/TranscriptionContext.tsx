@@ -42,12 +42,12 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     const initializeWhisperModel = async () => {
       try {
         setIsModelLoading(true);
-        setProgressMessage('Initializing Whisper model...');
+        setProgressMessage('Initializing speech recognition model...');
 
-        // Initialize the transcriber with the local whisper model
+        // Using a compatible ASR model instead of directly using whisper
         const transcriber = await pipeline(
           "automatic-speech-recognition",
-          "openai/whisper-large-v3",
+          "onnx-community/whisper-tiny.en", // Using a compatible ONNX model that works with WebGPU
           { 
             device: "webgpu",
             progress_callback: (progress: any) => {
@@ -62,10 +62,10 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         );
         
         setWhisperTranscriber(transcriber);
-        toast.success('Whisper model loaded successfully');
+        toast.success('Speech recognition model loaded successfully');
       } catch (error) {
-        console.error('Error loading Whisper model:', error);
-        toast.error(`Failed to load Whisper model: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error('Error loading speech recognition model:', error);
+        toast.error(`Failed to load speech recognition model: ${error instanceof Error ? error.message : 'Unknown error'}`);
       } finally {
         setIsModelLoading(false);
         setProgressMessage('');
@@ -174,7 +174,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     }
 
     if (!whisperTranscriber) {
-      toast.error('Whisper model is not loaded yet. Please wait or try reloading the page.');
+      toast.error('Speech recognition model is not loaded yet. Please wait or try reloading the page.');
       return;
     }
 
@@ -183,12 +183,12 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     setIsTranscribingWithWhisper(true);
     
     try {
-      toast.info(`Transcribing file: ${file.name} with Whisper AI (local model)`);
+      toast.info(`Transcribing file: ${file.name} with local speech recognition model`);
       
       // Convert file to ArrayBuffer
       const arrayBuffer = await file.arrayBuffer();
       
-      // Transcribe with the local Whisper model
+      // Transcribe with the local model
       const output = await whisperTranscriber(arrayBuffer, {
         language: selectedLanguage.split('-')[0], // Extract language code (e.g., 'en' from 'en-US')
         task: "transcribe"
