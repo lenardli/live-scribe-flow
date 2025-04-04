@@ -17,7 +17,8 @@ const TranscriptionControls: React.FC = () => {
     isProcessingFile,
     handleFileUpload,
     isModelLoading,
-    selectedModel
+    selectedModel,
+    isModelInitialized
   } = useTranscription();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,37 +57,40 @@ const TranscriptionControls: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-3 justify-center items-center">
+      <div className="flex flex-wrap gap-3 justify-center items-start">
         <LanguageSelector />
         <ModelSelector />
         
-        <Button
-          variant={isRecording ? "destructive" : "default"}
-          onClick={isRecording ? stopRecording : startRecording}
-          className={isRecording ? "bg-red-500 hover:bg-red-600" : "bg-transcribe-primary hover:bg-transcribe-secondary"}
-          disabled={isProcessingFile || isModelLoading}
-        >
-          {isRecording ? (
-            <>
-              <MicOff className="mr-2 h-4 w-4" />
-              Stop Recording
-            </>
-          ) : (
-            <>
-              <Mic className="mr-2 h-4 w-4" />
-              Start Recording
-            </>
-          )}
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            variant={isRecording ? "destructive" : "default"}
+            onClick={isRecording ? stopRecording : startRecording}
+            className={isRecording ? "bg-red-500 hover:bg-red-600" : "bg-transcribe-primary hover:bg-transcribe-secondary"}
+            disabled={isProcessingFile || isModelLoading || !isModelInitialized}
+          >
+            {isRecording ? (
+              <>
+                <MicOff className="mr-2 h-4 w-4" />
+                Stop Recording
+              </>
+            ) : (
+              <>
+                <Mic className="mr-2 h-4 w-4" />
+                Start Recording
+              </>
+            )}
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={triggerFileInput}
+            disabled={isRecording || isProcessingFile || isModelLoading || !isModelInitialized}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Audio
+          </Button>
+        </div>
         
-        <Button
-          variant="outline"
-          onClick={triggerFileInput}
-          disabled={isRecording || isProcessingFile || isModelLoading}
-        >
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Audio
-        </Button>
         <input 
           type="file" 
           ref={fileInputRef}
@@ -95,33 +99,37 @@ const TranscriptionControls: React.FC = () => {
           className="hidden"
         />
         
-        <Button
-          variant="outline"
-          onClick={handleCopyTranscript}
-          disabled={!transcript.trim()}
-        >
-          <Copy className="mr-2 h-4 w-4" />
-          Copy Text
-        </Button>
-        
-        <Button
-          variant="outline"
-          onClick={clearTranscript}
-          disabled={!transcript.trim() && !isProcessingFile}
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Clear
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="outline"
+            onClick={handleCopyTranscript}
+            disabled={!transcript.trim()}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy Text
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={clearTranscript}
+            disabled={!transcript.trim() && !isProcessingFile}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Clear
+          </Button>
+        </div>
       </div>
       
-      <div className="bg-blue-50 p-3 rounded-md">
-        <p className="text-sm text-blue-600">
-          Using {selectedModel.name} speech recognition model
-        </p>
-        <p className="text-xs mt-2 text-blue-500">
-          {selectedModel.description} - Runs entirely in your browser using WebGPU
-        </p>
-      </div>
+      {isModelInitialized && (
+        <div className="bg-blue-50 p-3 rounded-md">
+          <p className="text-sm text-blue-600">
+            Using {selectedModel.name} speech recognition model
+          </p>
+          <p className="text-xs mt-2 text-blue-500">
+            {selectedModel.description} - Runs entirely in your browser using WebGPU
+          </p>
+        </div>
+      )}
     </div>
   );
 };

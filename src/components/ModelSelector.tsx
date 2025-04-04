@@ -14,7 +14,8 @@ import {
   HoverCardContent,
   HoverCardTrigger
 } from '@/components/ui/hover-card';
-import { InfoIcon } from 'lucide-react';
+import { InfoIcon, Download, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const ModelSelector: React.FC = () => {
   const { 
@@ -23,7 +24,9 @@ const ModelSelector: React.FC = () => {
     availableModels,
     isModelLoading,
     isRecording,
-    isProcessingFile
+    isProcessingFile,
+    isModelInitialized,
+    loadModel
   } = useTranscription();
 
   const handleModelChange = (modelId: string) => {
@@ -34,49 +37,75 @@ const ModelSelector: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center space-x-2">
-      <HoverCard>
-        <HoverCardTrigger asChild>
-          <div className="flex items-center">
-            <span className="text-sm mr-2 text-gray-700">Model:</span>
-            <InfoIcon className="h-4 w-4 text-gray-500 cursor-help" />
-          </div>
-        </HoverCardTrigger>
-        <HoverCardContent className="w-80 p-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">Transcription Model Selection</h4>
-            <p className="text-sm text-muted-foreground">
-              Choose between different Whisper models. Larger models are more accurate but take longer to load and process audio.
-            </p>
-            <ul className="text-xs space-y-1 list-disc pl-4">
-              {availableModels.map(model => (
-                <li key={model.id} className="text-gray-700">
-                  <span className="font-semibold">{model.name}:</span> {model.description} ({model.size})
-                </li>
-              ))}
-            </ul>
-          </div>
-        </HoverCardContent>
-      </HoverCard>
+    <div className="flex flex-col space-y-2">
+      <div className="flex items-center space-x-2">
+        <HoverCard>
+          <HoverCardTrigger asChild>
+            <div className="flex items-center">
+              <span className="text-sm mr-2 text-gray-700">Model:</span>
+              <InfoIcon className="h-4 w-4 text-gray-500 cursor-help" />
+            </div>
+          </HoverCardTrigger>
+          <HoverCardContent className="w-80 p-4">
+            <div className="space-y-2">
+              <h4 className="font-medium">Transcription Model Selection</h4>
+              <p className="text-sm text-muted-foreground">
+                Choose between different Whisper models. Larger models are more accurate but take longer to load and process audio.
+              </p>
+              <ul className="text-xs space-y-1 list-disc pl-4">
+                {availableModels.map(model => (
+                  <li key={model.id} className="text-gray-700">
+                    <span className="font-semibold">{model.name}:</span> {model.description} ({model.size})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
 
-      <Select 
-        value={selectedModel.id}
-        onValueChange={handleModelChange}
-        disabled={isRecording || isProcessingFile || isModelLoading}
+        <Select 
+          value={selectedModel.id}
+          onValueChange={handleModelChange}
+          disabled={isRecording || isProcessingFile || isModelLoading}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Select a model" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {availableModels.map(model => (
+                <SelectItem key={model.id} value={model.id}>
+                  {model.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <Button
+        variant={isModelInitialized ? "outline" : "default"}
+        onClick={loadModel}
+        disabled={isModelLoading || isRecording || isProcessingFile || isModelInitialized}
+        className="self-start"
       >
-        <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder="Select a model" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {availableModels.map(model => (
-              <SelectItem key={model.id} value={model.id}>
-                {model.name}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+        {isModelInitialized ? (
+          <>
+            <Check className="mr-2 h-4 w-4 text-green-500" />
+            Model Loaded
+          </>
+        ) : isModelLoading ? (
+          <>
+            <Download className="mr-2 h-4 w-4 animate-spin" />
+            Loading Model...
+          </>
+        ) : (
+          <>
+            <Download className="mr-2 h-4 w-4" />
+            Load Model
+          </>
+        )}
+      </Button>
     </div>
   );
 };

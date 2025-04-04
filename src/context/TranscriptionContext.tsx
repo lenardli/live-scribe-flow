@@ -53,6 +53,8 @@ interface TranscriptionContextType {
   selectedModel: TranscriptionModel;
   setSelectedModel: (model: TranscriptionModel) => void;
   availableModels: TranscriptionModel[];
+  isModelInitialized: boolean;
+  loadModel: () => Promise<void>;
 }
 
 const TranscriptionContext = createContext<TranscriptionContextType | undefined>(undefined);
@@ -73,12 +75,13 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [whisperTranscriber, setWhisperTranscriber] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<TranscriptionModel>(AVAILABLE_MODELS[0]);
+  const [isModelInitialized, setIsModelInitialized] = useState<boolean>(false);
 
-  React.useEffect(() => {
-    loadTranscriptionModel(selectedModel.id);
-  }, [selectedModel.id]);
+  const loadModel = async () => {
+    if (isModelInitialized || isModelLoading) {
+      return;
+    }
 
-  const loadTranscriptionModel = async (modelId: string) => {
     try {
       if (whisperTranscriber) {
         setWhisperTranscriber(null);
@@ -89,7 +92,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
 
       const transcriber = await pipeline(
         "automatic-speech-recognition",
-        modelId,
+        selectedModel.id,
         { 
           device: "webgpu",
           progress_callback: (progress: any) => {
@@ -104,6 +107,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       );
       
       setWhisperTranscriber(transcriber);
+      setIsModelInitialized(true);
       toast.success(`${selectedModel.name} model loaded successfully`);
     } catch (error) {
       console.error('Error loading speech recognition model:', error);
@@ -114,7 +118,16 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     }
   };
 
+  React.useEffect(() => {
+    setIsModelInitialized(false);
+  }, [selectedModel.id]);
+
   const startRecording = () => {
+    if (!isModelInitialized) {
+      toast.error('Please load the speech recognition model first');
+      return;
+    }
+
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -212,8 +225,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       return;
     }
 
-    if (!whisperTranscriber) {
-      toast.error('Speech recognition model is not loaded yet. Please wait or try reloading the page.');
+    if (!isModelInitialized) {
+      toast.error('Please load the speech recognition model first');
       return;
     }
 
@@ -259,7 +272,9 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       progressMessage,
       selectedModel,
       setSelectedModel,
-      availableModels: AVAILABLE_MODELS
+      availableModels: AVAILABLE_MODELS,
+      isModelInitialized,
+      loadModel
     }}>
       {children}
     </TranscriptionContext.Provider>
