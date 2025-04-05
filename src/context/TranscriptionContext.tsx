@@ -294,8 +294,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const audioContext = new AudioContextClass();
       const audioBuffer = await audioContext.decodeAudioData(await file.arrayBuffer());
-      console.log('File loaded as ArrayBuffer:', audioBuffer.byteLength, 'bytes');
-      console.log('Audio decoded successfully:', audioBuffer.duration, 'seconds,', audioBuffer.numberOfChannels, 'channels');
+      console.log('Audio decoded successfully:', audioBuffer.duration, 'seconds,', audioBuffer.numberOfChannels, 'channels', audioBuffer.length, 'samples');
       
       let audioData: Float32Array;
       
