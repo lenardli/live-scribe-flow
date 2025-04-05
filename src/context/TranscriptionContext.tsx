@@ -116,7 +116,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       }
       
       try {
-        const testData = new Uint8Array(100);
+        const testData = new Float32Array(100);
         await transcriber(testData, { return_timestamps: false }); 
       } catch (testError) {
         console.log('Initial test failed, but model still initialized:', testError);
@@ -261,7 +261,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         throw new Error('Transcription model not properly initialized');
       }
       
-      const audioData = new Uint8Array(arrayBuffer);
+      const audioData = new Float32Array(arrayBuffer);
       
       console.log('Starting transcription with model:', selectedModel.id);
       console.log('Audio data length:', audioData.length);
