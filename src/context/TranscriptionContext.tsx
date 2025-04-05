@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import { toast } from "sonner";
 import { pipeline } from "@huggingface/transformers";
@@ -64,6 +63,12 @@ interface TranscriptionProviderProps {
   children: ReactNode;
 }
 
+declare global {
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
+}
+
 export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ children }) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [transcript, setTranscript] = useState<string>('');
@@ -78,7 +83,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [selectedModel, setSelectedModel] = useState<TranscriptionModel>(AVAILABLE_MODELS[0]);
   const [isModelInitialized, setIsModelInitialized] = useState<boolean>(false);
 
-  // Function to verify if the transcriber is properly initialized
   const verifyTranscriber = useCallback(() => {
     if (!whisperTranscriber || typeof whisperTranscriber !== 'function') {
       console.error('Transcription model not properly initialized');
@@ -131,11 +135,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         throw new Error('Failed to initialize transcription model - transcriber is not a function');
       }
       
-      // Perform a test with Float32Array data to ensure model is properly initialized
       try {
-        // Create a small test audio sample
         const testData = new Float32Array(1600);
-        // Add some audio-like data
         for (let i = 0; i < testData.length; i++) {
           testData[i] = Math.sin(i * 0.01) * 0.5;
         }
@@ -148,7 +149,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         console.log("Test transcription completed successfully:", testResult);
       } catch (testError) {
         console.log('Initial test failed, but model still initialized:', testError);
-        // We'll continue even if the test fails, as it might be due to the test data format
       }
       
       setWhisperTranscriber(transcriber);
@@ -291,20 +291,15 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     try {
       toast.info(`Transcribing file: ${file.name} with ${selectedModel.name} model`);
       
-      // Read file as ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
-      console.log('File loaded as ArrayBuffer:', arrayBuffer.byteLength, 'bytes');
-      
-      // Convert ArrayBuffer to audio context for proper processing
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      const audioBuffer = await audioContext.decodeAudioData(await file.arrayBuffer());
+      console.log('File loaded as ArrayBuffer:', audioBuffer.byteLength, 'bytes');
       console.log('Audio decoded successfully:', audioBuffer.duration, 'seconds,', audioBuffer.numberOfChannels, 'channels');
       
-      // Convert to proper Float32Array format for the model
       let audioData: Float32Array;
       
       if (audioBuffer.numberOfChannels === 2) {
-        // Stereo to mono conversion
         const SCALING_FACTOR = Math.sqrt(2);
         const left = audioBuffer.getChannelData(0);
         const right = audioBuffer.getChannelData(1);
@@ -314,7 +309,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
           audioData[i] = SCALING_FACTOR * (left[i] + right[i]) / 2;
         }
       } else {
-        // Use mono as is
         audioData = audioBuffer.getChannelData(0);
       }
       
@@ -322,12 +316,11 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       console.log('Audio data length:', audioData.length, 'samples');
       console.log('Audio data type:', audioData.constructor.name);
       
-      // Process the audio data with the transcriber
       const output = await whisperTranscriber(audioData, {
         language: selectedLanguage.split('-')[0],
         task: "transcribe",
         return_timestamps: false,
-        chunk_length_s: 30,  // Process in 30-second chunks
+        chunk_length_s: 30,
       });
       
       console.log('Transcription output:', output);
@@ -342,7 +335,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       console.error('Transcription error:', error);
       toast.error(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       
-      // Reset model state if there's an error with the model itself
       if (error instanceof Error && 
           (error.message.includes('not properly initialized') || 
            error.message.includes('not a function'))) {
