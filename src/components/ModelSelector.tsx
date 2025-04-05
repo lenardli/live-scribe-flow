@@ -38,6 +38,16 @@ const ModelSelector: React.FC = () => {
     }
   };
 
+  const handleLoadModel = async () => {
+    try {
+      await loadModel();
+    } catch (error) {
+      console.error("Failed to load model:", error);
+    }
+  };
+
+  const isDisabled = isRecording || isProcessingFile || isModelLoading;
+
   return (
     <div className="flex flex-col space-y-2">
       <div className="flex items-center space-x-2">
@@ -68,7 +78,7 @@ const ModelSelector: React.FC = () => {
         <Select 
           value={selectedModel.id}
           onValueChange={handleModelChange}
-          disabled={isRecording || isProcessingFile || isModelLoading}
+          disabled={isDisabled}
         >
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Select a model" />
@@ -87,8 +97,8 @@ const ModelSelector: React.FC = () => {
       
       <Button
         variant={isModelInitialized ? "outline" : "default"}
-        onClick={loadModel}
-        disabled={isModelLoading || isRecording || isProcessingFile}
+        onClick={handleLoadModel}
+        disabled={isDisabled}
         className="self-start"
       >
         {isModelInitialized ? (

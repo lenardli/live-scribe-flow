@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import { toast } from "sonner";
 import { pipeline } from "@huggingface/transformers";
 
@@ -78,8 +78,18 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [selectedModel, setSelectedModel] = useState<TranscriptionModel>(AVAILABLE_MODELS[0]);
   const [isModelInitialized, setIsModelInitialized] = useState<boolean>(false);
 
+  // Function to verify if the transcriber is properly initialized
+  const verifyTranscriber = useCallback(() => {
+    if (!whisperTranscriber || typeof whisperTranscriber !== 'function') {
+      console.error('Transcription model not properly initialized');
+      setIsModelInitialized(false);
+      return false;
+    }
+    return true;
+  }, [whisperTranscriber]);
+
   const loadModel = async () => {
-    if (isModelInitialized && whisperTranscriber) {
+    if (isModelInitialized && whisperTranscriber && verifyTranscriber()) {
       console.log("Model already initialized:", selectedModel.id);
       return;
     }
@@ -121,12 +131,21 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         throw new Error('Failed to initialize transcription model - transcriber is not a function');
       }
       
-      // Perform a test with Float32Array data
+      // Perform a test with Float32Array data to ensure model is properly initialized
       try {
-        const testData = new Float32Array(100);
+        // Create a small test audio sample
+        const testData = new Float32Array(1600);
+        // Add some audio-like data
+        for (let i = 0; i < testData.length; i++) {
+          testData[i] = Math.sin(i * 0.01) * 0.5;
+        }
+        
         console.log("Running test transcription with sample data");
-        await transcriber(testData, { return_timestamps: false }); 
-        console.log("Test transcription completed successfully");
+        const testResult = await transcriber(testData, { 
+          return_timestamps: false,
+          chunk_length_s: 1
+        });
+        console.log("Test transcription completed successfully:", testResult);
       } catch (testError) {
         console.log('Initial test failed, but model still initialized:', testError);
         // We'll continue even if the test fails, as it might be due to the test data format
@@ -153,7 +172,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   }, [selectedModel.id]);
 
   const startRecording = () => {
-    if (!isModelInitialized || !whisperTranscriber) {
+    if (!isModelInitialized || !whisperTranscriber || !verifyTranscriber()) {
       toast.error('Please load the speech recognition model first');
       return;
     }
@@ -255,14 +274,13 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       return;
     }
 
-    if (!isModelInitialized) {
+    if (!isModelInitialized || !whisperTranscriber) {
       toast.error('Please load the speech recognition model first');
       return;
     }
     
-    if (!whisperTranscriber || typeof whisperTranscriber !== 'function') {
+    if (!verifyTranscriber()) {
       toast.error('Transcription model not properly initialized. Please reload the model.');
-      setIsModelInitialized(false);
       return;
     }
 
@@ -273,25 +291,43 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     try {
       toast.info(`Transcribing file: ${file.name} with ${selectedModel.name} model`);
       
+      // Read file as ArrayBuffer
       const arrayBuffer = await file.arrayBuffer();
       console.log('File loaded as ArrayBuffer:', arrayBuffer.byteLength, 'bytes');
       
-      // Convert to Float32Array for proper input format
-      const audioData = new Float32Array(arrayBuffer);
+      // Convert ArrayBuffer to audio context for proper processing
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      console.log('Audio decoded successfully:', audioBuffer.duration, 'seconds,', audioBuffer.numberOfChannels, 'channels');
       
-      console.log('Starting transcription with model:', selectedModel.id);
-      console.log('Audio data length:', audioData.length);
-      console.log('Audio data type:', audioData.constructor.name);
+      // Convert to proper Float32Array format for the model
+      let audioData: Float32Array;
       
-      // Verify whisperTranscriber is a function before calling it
-      if (typeof whisperTranscriber !== 'function') {
-        throw new Error('Transcription model not properly initialized - not a function');
+      if (audioBuffer.numberOfChannels === 2) {
+        // Stereo to mono conversion
+        const SCALING_FACTOR = Math.sqrt(2);
+        const left = audioBuffer.getChannelData(0);
+        const right = audioBuffer.getChannelData(1);
+        
+        audioData = new Float32Array(left.length);
+        for (let i = 0; i < left.length; i++) {
+          audioData[i] = SCALING_FACTOR * (left[i] + right[i]) / 2;
+        }
+      } else {
+        // Use mono as is
+        audioData = audioBuffer.getChannelData(0);
       }
       
+      console.log('Starting transcription with model:', selectedModel.id);
+      console.log('Audio data length:', audioData.length, 'samples');
+      console.log('Audio data type:', audioData.constructor.name);
+      
+      // Process the audio data with the transcriber
       const output = await whisperTranscriber(audioData, {
         language: selectedLanguage.split('-')[0],
         task: "transcribe",
-        return_timestamps: false
+        return_timestamps: false,
+        chunk_length_s: 30,  // Process in 30-second chunks
       });
       
       console.log('Transcription output:', output);
