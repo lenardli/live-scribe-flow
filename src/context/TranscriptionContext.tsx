@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 import { pipeline } from "@huggingface/transformers";
@@ -79,6 +80,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
 
   const loadModel = async () => {
     if (isModelInitialized && whisperTranscriber) {
+      console.log("Model already initialized:", selectedModel.id);
       return;
     }
 
@@ -91,6 +93,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       setIsModelInitialized(false);
       setProgressMessage(`Initializing ${selectedModel.name} model...`);
 
+      console.log("Starting to load model:", selectedModel.id);
+      
       const transcriber = await pipeline(
         "automatic-speech-recognition",
         selectedModel.id,
@@ -111,23 +115,31 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         }
       );
       
-      if (typeof transcriber !== 'function') {
-        throw new Error('Failed to initialize transcription model');
+      console.log("Pipeline returned:", transcriber);
+      
+      if (!transcriber || typeof transcriber !== 'function') {
+        throw new Error('Failed to initialize transcription model - transcriber is not a function');
       }
       
+      // Perform a test with Float32Array data
       try {
         const testData = new Float32Array(100);
+        console.log("Running test transcription with sample data");
         await transcriber(testData, { return_timestamps: false }); 
+        console.log("Test transcription completed successfully");
       } catch (testError) {
         console.log('Initial test failed, but model still initialized:', testError);
+        // We'll continue even if the test fails, as it might be due to the test data format
       }
       
       setWhisperTranscriber(transcriber);
       setIsModelInitialized(true);
+      console.log(`${selectedModel.name} model loaded successfully`, transcriber);
       toast.success(`${selectedModel.name} model loaded successfully`);
     } catch (error) {
       console.error('Error loading speech recognition model:', error);
       setIsModelInitialized(false);
+      setWhisperTranscriber(null);
       toast.error(`Failed to load ${selectedModel.name} model: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsModelLoading(false);
@@ -243,8 +255,14 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       return;
     }
 
-    if (!isModelInitialized || !whisperTranscriber) {
+    if (!isModelInitialized) {
       toast.error('Please load the speech recognition model first');
+      return;
+    }
+    
+    if (!whisperTranscriber || typeof whisperTranscriber !== 'function') {
+      toast.error('Transcription model not properly initialized. Please reload the model.');
+      setIsModelInitialized(false);
       return;
     }
 
@@ -256,15 +274,19 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       toast.info(`Transcribing file: ${file.name} with ${selectedModel.name} model`);
       
       const arrayBuffer = await file.arrayBuffer();
+      console.log('File loaded as ArrayBuffer:', arrayBuffer.byteLength, 'bytes');
       
-      if (!whisperTranscriber || typeof whisperTranscriber !== 'function') {
-        throw new Error('Transcription model not properly initialized');
-      }
-      
+      // Convert to Float32Array for proper input format
       const audioData = new Float32Array(arrayBuffer);
       
       console.log('Starting transcription with model:', selectedModel.id);
       console.log('Audio data length:', audioData.length);
+      console.log('Audio data type:', audioData.constructor.name);
+      
+      // Verify whisperTranscriber is a function before calling it
+      if (typeof whisperTranscriber !== 'function') {
+        throw new Error('Transcription model not properly initialized - not a function');
+      }
       
       const output = await whisperTranscriber(audioData, {
         language: selectedLanguage.split('-')[0],
@@ -275,7 +297,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       console.log('Transcription output:', output);
       
       if (!output || !output.text) {
-        throw new Error('Failed to generate transcription output');
+        throw new Error('Failed to generate transcription output - no text returned');
       }
       
       setTranscript(output.text);
@@ -283,6 +305,14 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     } catch (error) {
       console.error('Transcription error:', error);
       toast.error(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Reset model state if there's an error with the model itself
+      if (error instanceof Error && 
+          (error.message.includes('not properly initialized') || 
+           error.message.includes('not a function'))) {
+        setIsModelInitialized(false);
+        setWhisperTranscriber(null);
+      }
     } finally {
       setIsProcessingFile(false);
       setIsTranscribingWithWhisper(false);

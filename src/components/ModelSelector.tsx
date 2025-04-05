@@ -14,8 +14,9 @@ import {
   HoverCardContent,
   HoverCardTrigger
 } from '@/components/ui/hover-card';
-import { InfoIcon, Download, Check } from 'lucide-react';
+import { InfoIcon, Download, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const ModelSelector: React.FC = () => {
   const { 
@@ -97,7 +98,7 @@ const ModelSelector: React.FC = () => {
           </>
         ) : isModelLoading ? (
           <>
-            <Download className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             {progressMessage || 'Loading Model...'}
           </>
         ) : (
@@ -107,6 +108,15 @@ const ModelSelector: React.FC = () => {
           </>
         )}
       </Button>
+
+      {!isModelInitialized && !isModelLoading && (
+        <Alert className="mt-2 bg-amber-50 border-amber-200">
+          <AlertTitle className="text-amber-800">Model needs to be loaded</AlertTitle>
+          <AlertDescription className="text-amber-700 text-sm">
+            You must load the speech recognition model before you can transcribe audio files or start recording.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 };
