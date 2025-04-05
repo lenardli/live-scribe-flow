@@ -1,6 +1,8 @@
-import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
+
+import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
-import { pipeline } from "@huggingface/transformers";
+import Constants from "../utils/Constants";
+import { useTranscriber, TranscriberData } from '../hooks/useTranscriber';
 
 export type TranscriptionModel = {
   id: string;
@@ -77,88 +79,38 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [isTranscribingWithWhisper, setIsTranscribingWithWhisper] = useState<boolean>(false);
-  const [isModelLoading, setIsModelLoading] = useState<boolean>(false);
   const [progressMessage, setProgressMessage] = useState<string>('');
-  const [whisperTranscriber, setWhisperTranscriber] = useState<any>(null);
   const [selectedModel, setSelectedModel] = useState<TranscriptionModel>(AVAILABLE_MODELS[0]);
   const [isModelInitialized, setIsModelInitialized] = useState<boolean>(false);
 
-  const verifyTranscriber = useCallback(() => {
-    if (!whisperTranscriber || typeof whisperTranscriber !== 'function') {
-      console.error('Transcription model not properly initialized');
-      setIsModelInitialized(false);
-      return false;
-    }
-    return true;
-  }, [whisperTranscriber]);
+  // Initialize the transcriber
+  const transcriber = useTranscriber();
 
+  // This function will be called when loading the model in the UI
   const loadModel = async () => {
-    if (isModelInitialized && whisperTranscriber && verifyTranscriber()) {
+    if (isModelInitialized) {
       console.log("Model already initialized:", selectedModel.id);
       return;
     }
 
     try {
-      if (whisperTranscriber) {
-        setWhisperTranscriber(null);
-      }
+      transcriber.setModel(selectedModel.id);
       
       setIsModelLoading(true);
-      setIsModelInitialized(false);
       setProgressMessage(`Initializing ${selectedModel.name} model...`);
 
-      console.log("Starting to load model:", selectedModel.id);
+      // We'll be using the progress events from the transcriber to update our UI
+      setIsModelInitialized(false);
       
-      const transcriber = await pipeline(
-        "automatic-speech-recognition",
-        selectedModel.id,
-        { 
-          device: "webgpu",
-          progress_callback: (progress: any) => {
-            if (progress.status === 'download') {
-              const downloaded = Math.round(((progress.loaded || 0) / (progress.total || 1)) * 100);
-              const loadedMB = Math.round((progress.loaded || 0) / 1024 / 1024);
-              const totalMB = Math.round((progress.total || 1) / 1024 / 1024);
-              setProgressMessage(`Downloading model: ${downloaded}% (${loadedMB}MB / ${totalMB}MB)`);
-            } else if (progress.status === 'init') {
-              const initProgress = progress.progress !== null && progress.progress !== undefined ? 
-                Math.round(progress.progress * 100) : 0;
-              setProgressMessage(`Initializing model: ${initProgress}%`);
-            }
-          }
-        }
-      );
+      // Since our useTranscriber hook now handles model loading via web worker,
+      // we'll wait for the isModelLoading state to change
+      // This happens automatically via the worker events
       
-      console.log("Pipeline returned:", transcriber);
-      
-      if (!transcriber || typeof transcriber !== 'function') {
-        throw new Error('Failed to initialize transcription model - transcriber is not a function');
-      }
-      
-      try {
-        const testData = new Float32Array(1600);
-        for (let i = 0; i < testData.length; i++) {
-          testData[i] = Math.sin(i * 0.01) * 0.5;
-        }
-        
-        console.log("Running test transcription with sample data");
-        const testResult = await transcriber(testData, { 
-          return_timestamps: false,
-          chunk_length_s: 1
-        });
-        console.log("Test transcription completed successfully:", testResult);
-      } catch (testError) {
-        console.log('Initial test failed, but model still initialized:', testError);
-      }
-      
-      setWhisperTranscriber(transcriber);
-      setIsModelInitialized(true);
-      console.log(`${selectedModel.name} model loaded successfully`, transcriber);
       toast.success(`${selectedModel.name} model loaded successfully`);
+      setIsModelInitialized(true);
     } catch (error) {
       console.error('Error loading speech recognition model:', error);
       setIsModelInitialized(false);
-      setWhisperTranscriber(null);
       toast.error(`Failed to load ${selectedModel.name} model: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsModelLoading(false);
@@ -166,13 +118,44 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     }
   };
 
+  // Update UI based on transcriber state
+  React.useEffect(() => {
+    if (transcriber.isModelLoading) {
+      setIsModelLoading(true);
+      
+      if (transcriber.progressItems.length > 0) {
+        const item = transcriber.progressItems[0];
+        if (item.status === 'progress') {
+          const downloaded = Math.round(item.progress);
+          setProgressMessage(`Downloading model: ${downloaded}% (${Math.round(item.loaded / 1024 / 1024)}MB / ${Math.round(item.total / 1024 / 1024)}MB)`);
+        }
+      }
+    } else {
+      setIsModelLoading(false);
+      if (transcriber.output) {
+        setIsModelInitialized(true);
+      }
+    }
+  }, [transcriber.isModelLoading, transcriber.progressItems, transcriber.output]);
+
+  React.useEffect(() => {
+    if (transcriber.output) {
+      setTranscript(transcriber.output.text);
+      if (!transcriber.isBusy && isProcessingFile) {
+        setIsProcessingFile(false);
+        setIsTranscribingWithWhisper(false);
+        toast.success('Transcription completed successfully');
+      }
+    }
+  }, [transcriber.output, transcriber.isBusy, isProcessingFile]);
+
   React.useEffect(() => {
     setIsModelInitialized(false);
-    setWhisperTranscriber(null);
-  }, [selectedModel.id]);
+    transcriber.setModel(selectedModel.id);
+  }, [selectedModel.id, transcriber]);
 
   const startRecording = () => {
-    if (!isModelInitialized || !whisperTranscriber || !verifyTranscriber()) {
+    if (!isModelInitialized) {
       toast.error('Please load the speech recognition model first');
       return;
     }
@@ -265,6 +248,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const clearTranscript = () => {
     setTranscript('');
     setUploadedFileName(null);
+    transcriber.onInputChange();
     toast.info('Transcript cleared');
   };
 
@@ -274,13 +258,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       return;
     }
 
-    if (!isModelInitialized || !whisperTranscriber) {
+    if (!isModelInitialized) {
       toast.error('Please load the speech recognition model first');
-      return;
-    }
-    
-    if (!verifyTranscriber()) {
-      toast.error('Transcription model not properly initialized. Please reload the model.');
       return;
     }
 
@@ -296,51 +275,12 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       const audioBuffer = await audioContext.decodeAudioData(await file.arrayBuffer());
       console.log('Audio decoded successfully:', audioBuffer.duration, 'seconds,', audioBuffer.numberOfChannels, 'channels', audioBuffer.length, 'samples');
       
-      let audioData: Float32Array;
+      // Use the new transcriber to process the audio
+      transcriber.start(audioBuffer);
       
-      if (audioBuffer.numberOfChannels === 2) {
-        const SCALING_FACTOR = Math.sqrt(2);
-        const left = audioBuffer.getChannelData(0);
-        const right = audioBuffer.getChannelData(1);
-        
-        audioData = new Float32Array(left.length);
-        for (let i = 0; i < left.length; i++) {
-          audioData[i] = SCALING_FACTOR * (left[i] + right[i]) / 2;
-        }
-      } else {
-        audioData = audioBuffer.getChannelData(0);
-      }
-      
-      console.log('Starting transcription with model:', selectedModel.id);
-      console.log('Audio data length:', audioData.length, 'samples');
-      console.log('Audio data type:', audioData.constructor.name);
-      
-      const output = await whisperTranscriber(audioData, {
-        language: selectedLanguage.split('-')[0],
-        task: "transcribe",
-        return_timestamps: false,
-        chunk_length_s: 30,
-      });
-      
-      console.log('Transcription output:', output);
-      
-      if (!output || !output.text) {
-        throw new Error('Failed to generate transcription output - no text returned');
-      }
-      
-      setTranscript(output.text);
-      toast.success('Transcription completed successfully');
     } catch (error) {
       console.error('Transcription error:', error);
       toast.error(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
-      if (error instanceof Error && 
-          (error.message.includes('not properly initialized') || 
-           error.message.includes('not a function'))) {
-        setIsModelInitialized(false);
-        setWhisperTranscriber(null);
-      }
-    } finally {
       setIsProcessingFile(false);
       setIsTranscribingWithWhisper(false);
     }
@@ -359,7 +299,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       uploadedFileName,
       handleFileUpload,
       isTranscribingWithWhisper,
-      isModelLoading,
+      isModelLoading: transcriber.isModelLoading || isModelLoading,
       progressMessage,
       selectedModel,
       setSelectedModel,
