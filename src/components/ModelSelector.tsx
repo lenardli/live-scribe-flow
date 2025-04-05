@@ -87,7 +87,7 @@ const ModelSelector: React.FC = () => {
       <Button
         variant={isModelInitialized ? "outline" : "default"}
         onClick={loadModel}
-        disabled={isModelLoading || isRecording || isProcessingFile || isModelInitialized}
+        disabled={isModelLoading || isRecording || isProcessingFile}
         className="self-start"
       >
         {isModelInitialized ? (

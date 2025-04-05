@@ -78,7 +78,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [isModelInitialized, setIsModelInitialized] = useState<boolean>(false);
 
   const loadModel = async () => {
-    if (isModelInitialized || isModelLoading) {
+    if (isModelInitialized && whisperTranscriber) {
       return;
     }
 
@@ -88,6 +88,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       }
       
       setIsModelLoading(true);
+      setIsModelInitialized(false);
       setProgressMessage(`Initializing ${selectedModel.name} model...`);
 
       const transcriber = await pipeline(
@@ -110,11 +111,23 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         }
       );
       
+      if (typeof transcriber !== 'function') {
+        throw new Error('Failed to initialize transcription model');
+      }
+      
+      try {
+        const testData = new Uint8Array(100);
+        await transcriber(testData, { return_timestamps: false }); 
+      } catch (testError) {
+        console.log('Initial test failed, but model still initialized:', testError);
+      }
+      
       setWhisperTranscriber(transcriber);
       setIsModelInitialized(true);
       toast.success(`${selectedModel.name} model loaded successfully`);
     } catch (error) {
       console.error('Error loading speech recognition model:', error);
+      setIsModelInitialized(false);
       toast.error(`Failed to load ${selectedModel.name} model: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsModelLoading(false);
@@ -124,10 +137,11 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
 
   React.useEffect(() => {
     setIsModelInitialized(false);
+    setWhisperTranscriber(null);
   }, [selectedModel.id]);
 
   const startRecording = () => {
-    if (!isModelInitialized) {
+    if (!isModelInitialized || !whisperTranscriber) {
       toast.error('Please load the speech recognition model first');
       return;
     }
@@ -229,7 +243,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       return;
     }
 
-    if (!isModelInitialized) {
+    if (!isModelInitialized || !whisperTranscriber) {
       toast.error('Please load the speech recognition model first');
       return;
     }
@@ -239,7 +253,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     setIsTranscribingWithWhisper(true);
     
     try {
-      toast.info(`Transcribing file: ${file.name} with advanced speech recognition model`);
+      toast.info(`Transcribing file: ${file.name} with ${selectedModel.name} model`);
       
       const arrayBuffer = await file.arrayBuffer();
       
@@ -247,10 +261,18 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         throw new Error('Transcription model not properly initialized');
       }
       
-      const output = await whisperTranscriber(new Uint8Array(arrayBuffer), {
+      const audioData = new Uint8Array(arrayBuffer);
+      
+      console.log('Starting transcription with model:', selectedModel.id);
+      console.log('Audio data length:', audioData.length);
+      
+      const output = await whisperTranscriber(audioData, {
         language: selectedLanguage.split('-')[0],
-        task: "transcribe"
+        task: "transcribe",
+        return_timestamps: false
       });
+      
+      console.log('Transcription output:', output);
       
       if (!output || !output.text) {
         throw new Error('Failed to generate transcription output');
