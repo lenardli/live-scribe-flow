@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 import { pipeline } from "@huggingface/transformers";
@@ -98,13 +97,11 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
           device: "webgpu",
           progress_callback: (progress: any) => {
             if (progress.status === 'download') {
-              // Fix for the loading percentage issue
               const downloaded = Math.round(((progress.loaded || 0) / (progress.total || 1)) * 100);
               const loadedMB = Math.round((progress.loaded || 0) / 1024 / 1024);
               const totalMB = Math.round((progress.total || 1) / 1024 / 1024);
               setProgressMessage(`Downloading model: ${downloaded}% (${loadedMB}MB / ${totalMB}MB)`);
             } else if (progress.status === 'init') {
-              // Ensure progress.progress is a number
               const initProgress = progress.progress !== null && progress.progress !== undefined ? 
                 Math.round(progress.progress * 100) : 0;
               setProgressMessage(`Initializing model: ${initProgress}%`);
@@ -246,10 +243,18 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       
       const arrayBuffer = await file.arrayBuffer();
       
-      const output = await whisperTranscriber(arrayBuffer, {
+      if (!whisperTranscriber || typeof whisperTranscriber !== 'function') {
+        throw new Error('Transcription model not properly initialized');
+      }
+      
+      const output = await whisperTranscriber(new Uint8Array(arrayBuffer), {
         language: selectedLanguage.split('-')[0],
         task: "transcribe"
       });
+      
+      if (!output || !output.text) {
+        throw new Error('Failed to generate transcription output');
+      }
       
       setTranscript(output.text);
       toast.success('Transcription completed successfully');
