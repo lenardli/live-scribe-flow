@@ -1,3 +1,4 @@
+
 import { useCallback, useMemo, useState } from "react";
 import { useWorker } from "./useWorker";
 import Constants from "../utils/Constants";
@@ -109,6 +110,7 @@ export function useTranscriber(): Transcriber {
                 break;
             case "error":
                 setIsBusy(false);
+                setIsModelLoading(false);
                 alert(
                     `${message.data.message} This is most likely because you are using Safari on an M1/M2 Mac. Please try again from Chrome, Firefox, or Edge.\n\nIf this is not the case, please file a bug report.`,
                 );
@@ -143,17 +145,31 @@ export function useTranscriber(): Transcriber {
     }, []);
 
     const postRequest = useCallback(
-        async (audioData: AudioBuffer | undefined) => {
+        async (audioData: AudioBuffer | undefined | null) => {
+            setIsBusy(true);
+            
+            // If audioData is null, we're just initializing the model
+            if (audioData === null) {
+                webWorker.postMessage({
+                    audio: null, // Signal to worker this is just model initialization
+                    model,
+                    multilingual,
+                    quantized,  // Keep sending this for backward compatibility
+                    subtask: multilingual ? subtask : null,
+                    language: multilingual && language !== "auto" ? language : null,
+                });
+                return;
+            }
+            
             if (audioData) {
                 setTranscript(undefined);
-                setIsBusy(true);
 
                 let audio;
                 if (audioData.numberOfChannels === 2) {
                     const SCALING_FACTOR = Math.sqrt(2);
 
-                    let left = audioData.getChannelData(0);
-                    let right = audioData.getChannelData(1);
+                    const left = audioData.getChannelData(0);
+                    const right = audioData.getChannelData(1);
 
                     audio = new Float32Array(left.length);
                     for (let i = 0; i < left.length; ++i) {
@@ -164,8 +180,6 @@ export function useTranscriber(): Transcriber {
                     audio = audioData.getChannelData(0);
                 }
 
-                // We're still sending the quantized parameter to the worker for backward compatibility,
-                // but it will be ignored in the worker due to type constraints
                 webWorker.postMessage({
                     audio,
                     model,

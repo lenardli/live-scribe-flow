@@ -10,7 +10,8 @@ let transcriber: any = null;
 // Process messages from the main thread
 ctx.addEventListener("message", async (event) => {
   try {
-    const { audio, model, multilingual, quantized, subtask, language } = event.data;
+    const { audio, model, multilingual, subtask, language } = event.data;
+    // Removed quantized from the destructuring since it's not used anymore
 
     if (!transcriber) {
       // Send loading status
@@ -45,9 +46,7 @@ ctx.addEventListener("message", async (event) => {
               });
             }
           },
-          // Remove the quantized property from here as it's not recognized in the type
           device: "webgpu",
-          // Pass other options as needed
         }
       );
 
@@ -61,26 +60,35 @@ ctx.addEventListener("message", async (event) => {
       });
     }
 
-    // Process the audio data
-    const result = await transcriber(audio, {
-      task: subtask || "transcribe",
-      language,
-      chunk_length_s: 30,
-      stride_length_s: 5,
-      return_timestamps: true,
-      callback_function: (data: any) => {
-        ctx.postMessage({
-          status: "update",
-          data,
-        });
-      },
-    });
+    // Only process audio if it's provided (not during initial model loading)
+    if (audio) {
+      // Process the audio data
+      const result = await transcriber(audio, {
+        task: subtask || "transcribe",
+        language,
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        return_timestamps: true,
+        callback_function: (data: any) => {
+          ctx.postMessage({
+            status: "update",
+            data,
+          });
+        },
+      });
 
-    // Send the complete transcript back
-    ctx.postMessage({
-      status: "complete",
-      data: result,
-    });
+      // Send the complete transcript back
+      ctx.postMessage({
+        status: "complete",
+        data: result,
+      });
+    } else {
+      // If no audio is provided, just confirm the model is loaded
+      ctx.postMessage({
+        status: "complete",
+        data: { text: "", chunks: [] },
+      });
+    }
   } catch (error) {
     console.error("Worker error:", error);
     ctx.postMessage({

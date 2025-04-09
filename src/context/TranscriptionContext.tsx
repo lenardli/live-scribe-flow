@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { toast } from "sonner";
 import Constants from "../utils/Constants";
 import { useTranscriber, TranscriberData } from '../hooks/useTranscriber';
@@ -91,24 +92,32 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     }
 
     try {
+      setProgressMessage(`Initializing ${selectedModel.name} model...`);
+      
+      // Update the model in the transcriber
       transcriber.setModel(selectedModel.id);
       
-      setProgressMessage(`Initializing ${selectedModel.name} model...`);
-
-      const dummyBuffer = new AudioContext().createBuffer(1, 1, 16000);
-      transcriber.start(dummyBuffer);
+      // Create a minimal dummy buffer for model initialization
+      // A 1s buffer at 16kHz (16000 samples)
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      const dummyBuffer = audioContext.createBuffer(1, 16000, 16000);
       
-      toast.success(`${selectedModel.name} model loaded successfully`);
+      // Pass null for audio to signal this is just a model initialization request
+      transcriber.start(null);
+      
+      // Wait for the model to be fully loaded before setting as initialized
+      // This will be handled by the useEffect that watches transcriber.output
     } catch (error) {
       console.error('Error loading speech recognition model:', error);
       setIsModelInitialized(false);
       toast.error(`Failed to load ${selectedModel.name} model: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
       setProgressMessage('');
     }
   };
 
-  React.useEffect(() => {
+  // Monitor loading progress
+  useEffect(() => {
     if (transcriber.isModelLoading) {
       setProgressMessage(`Loading model...`);
       
@@ -119,27 +128,37 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
           setProgressMessage(`Downloading model: ${downloaded}% (${Math.round(item.loaded / 1024 / 1024)}MB / ${Math.round(item.total / 1024 / 1024)}MB)`);
         }
       }
-    } else {
-      if (transcriber.output) {
-        setIsModelInitialized(true);
-      }
-    }
-  }, [transcriber.isModelLoading, transcriber.progressItems, transcriber.output]);
+    } 
+  }, [transcriber.isModelLoading, transcriber.progressItems]);
 
-  React.useEffect(() => {
-    if (transcriber.output) {
-      setTranscript(transcriber.output.text);
+  // Monitor model completion
+  useEffect(() => {
+    if (!transcriber.isModelLoading && transcriber.output) {
+      // If the model loading is complete
+      setIsModelInitialized(true);
+      if (progressMessage) {
+        setProgressMessage('');
+        toast.success(`${selectedModel.name} model loaded successfully`);
+      }
+      
+      // Handle transcription completion
       if (!transcriber.isBusy && isProcessingFile) {
         setIsProcessingFile(false);
         setIsTranscribingWithWhisper(false);
         toast.success('Transcription completed successfully');
       }
+      
+      // Update transcript when available
+      setTranscript(transcriber.output.text);
     }
-  }, [transcriber.output, transcriber.isBusy, isProcessingFile]);
+  }, [transcriber.output, transcriber.isBusy, transcriber.isModelLoading, isProcessingFile, progressMessage, selectedModel.name]);
 
-  React.useEffect(() => {
-    setIsModelInitialized(false);
-    transcriber.setModel(selectedModel.id);
+  // Reset model when selected model changes
+  useEffect(() => {
+    if (selectedModel.id !== transcriber.model) {
+      setIsModelInitialized(false);
+      transcriber.setModel(selectedModel.id);
+    }
   }, [selectedModel.id, transcriber]);
 
   const startRecording = () => {
