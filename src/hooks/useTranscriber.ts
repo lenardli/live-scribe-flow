@@ -1,4 +1,3 @@
-
 import { useCallback, useMemo, useState } from "react";
 import { useWorker } from "./useWorker";
 import Constants from "../utils/Constants";
@@ -165,11 +164,13 @@ export function useTranscriber(): Transcriber {
                     audio = audioData.getChannelData(0);
                 }
 
+                // We're still sending the quantized parameter to the worker for backward compatibility,
+                // but it will be ignored in the worker due to type constraints
                 webWorker.postMessage({
                     audio,
                     model,
                     multilingual,
-                    quantized,
+                    quantized,  // Keep sending this for backward compatibility
                     subtask: multilingual ? subtask : null,
                     language:
                         multilingual && language !== "auto" ? language : null,

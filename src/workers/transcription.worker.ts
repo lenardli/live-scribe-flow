@@ -45,8 +45,9 @@ ctx.addEventListener("message", async (event) => {
               });
             }
           },
-          quantized: quantized === true, // Ensure quantized is properly passed to the model
+          // Remove the quantized property from here as it's not recognized in the type
           device: "webgpu",
+          // Pass other options as needed
         }
       );
 
