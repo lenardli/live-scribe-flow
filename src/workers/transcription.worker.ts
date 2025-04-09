@@ -45,6 +45,7 @@ ctx.addEventListener("message", async (event) => {
               });
             }
           },
+          quantized: quantized === true, // Ensure quantized is properly passed to the model
           device: "webgpu",
         }
       );

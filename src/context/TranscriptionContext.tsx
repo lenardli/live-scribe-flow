@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { toast } from "sonner";
 import Constants from "../utils/Constants";
@@ -83,10 +82,8 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   const [selectedModel, setSelectedModel] = useState<TranscriptionModel>(AVAILABLE_MODELS[0]);
   const [isModelInitialized, setIsModelInitialized] = useState<boolean>(false);
 
-  // Initialize the transcriber
   const transcriber = useTranscriber();
 
-  // This function will be called when loading the model in the UI
   const loadModel = async () => {
     if (isModelInitialized) {
       console.log("Model already initialized:", selectedModel.id);
@@ -98,15 +95,10 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       
       setProgressMessage(`Initializing ${selectedModel.name} model...`);
 
-      // We'll be using the progress events from the transcriber to update our UI
-      setIsModelInitialized(false);
-      
-      // Since our useTranscriber hook now handles model loading via web worker,
-      // we'll wait for the isModelLoading state to change
-      // This happens automatically via the worker events
+      const dummyBuffer = new AudioContext().createBuffer(1, 1, 16000);
+      transcriber.start(dummyBuffer);
       
       toast.success(`${selectedModel.name} model loaded successfully`);
-      setIsModelInitialized(true);
     } catch (error) {
       console.error('Error loading speech recognition model:', error);
       setIsModelInitialized(false);
@@ -116,7 +108,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     }
   };
 
-  // Update UI based on transcriber state
   React.useEffect(() => {
     if (transcriber.isModelLoading) {
       setProgressMessage(`Loading model...`);
@@ -272,7 +263,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       const audioBuffer = await audioContext.decodeAudioData(await file.arrayBuffer());
       console.log('Audio decoded successfully:', audioBuffer.duration, 'seconds,', audioBuffer.numberOfChannels, 'channels', audioBuffer.length, 'samples');
       
-      // Use the new transcriber to process the audio
       transcriber.start(audioBuffer);
       
     } catch (error) {
