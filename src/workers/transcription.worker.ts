@@ -28,7 +28,6 @@ ctx.addEventListener("message", async (event) => {
         "automatic-speech-recognition",
         model,
         {
-          quantized,
           progress_callback: (progress: any) => {
             if (progress.status === "download") {
               ctx.postMessage({

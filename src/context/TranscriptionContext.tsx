@@ -96,7 +96,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
     try {
       transcriber.setModel(selectedModel.id);
       
-      setIsModelLoading(true);
       setProgressMessage(`Initializing ${selectedModel.name} model...`);
 
       // We'll be using the progress events from the transcriber to update our UI
@@ -113,7 +112,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       setIsModelInitialized(false);
       toast.error(`Failed to load ${selectedModel.name} model: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setIsModelLoading(false);
       setProgressMessage('');
     }
   };
@@ -121,7 +119,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
   // Update UI based on transcriber state
   React.useEffect(() => {
     if (transcriber.isModelLoading) {
-      setIsModelLoading(true);
+      setProgressMessage(`Loading model...`);
       
       if (transcriber.progressItems.length > 0) {
         const item = transcriber.progressItems[0];
@@ -131,7 +129,6 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
         }
       }
     } else {
-      setIsModelLoading(false);
       if (transcriber.output) {
         setIsModelInitialized(true);
       }
@@ -299,7 +296,7 @@ export const TranscriptionProvider: React.FC<TranscriptionProviderProps> = ({ ch
       uploadedFileName,
       handleFileUpload,
       isTranscribingWithWhisper,
-      isModelLoading: transcriber.isModelLoading || isModelLoading,
+      isModelLoading: transcriber.isModelLoading,
       progressMessage,
       selectedModel,
       setSelectedModel,
